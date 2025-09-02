@@ -1,104 +1,120 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using TodoAppBackend.Models;
-using System.Threading.Tasks;
+using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.IdentityModel.Tokens;
+using TodoAppBackend.Models;
 
 namespace TodoAppBackend.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController]
+    [Route("api/[controller]")]
     public class AuthController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
+        private readonly ILogger<AuthController> _logger;
 
-        public AuthController(UserManager<ApplicationUser> userManager, IConfiguration configuration)
+        public AuthController(
+            UserManager<ApplicationUser> userManager, 
+            IConfiguration configuration,
+            ILogger<AuthController> logger)
         {
             _userManager = userManager;
             _configuration = configuration;
+            _logger = logger;
+        }
+
+        [HttpPost("register")]
+        public async Task<IActionResult> Register(RegisterDto dto)
+        {
+            try
+            {
+                var existingUser = await _userManager.FindByNameAsync(dto.Username);
+                if (existingUser != null)
+                {
+                    return BadRequest(new { message = "Username already exists" });
+                }
+
+                var user = new ApplicationUser 
+                { 
+                    UserName = dto.Username,
+                    Email = $"{dto.Username}@todoapp.com" // Dummy email
+                };
+
+                var result = await _userManager.CreateAsync(user, dto.Password);
+
+                if (!result.Succeeded)
+                {
+                    return BadRequest(new { 
+                        message = "Registration failed", 
+                        errors = result.Errors.Select(e => e.Description) 
+                    });
+                }
+
+                _logger.LogInformation($"User {dto.Username} registered successfully");
+                return Ok(new { message = "User registered successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during registration");
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
+        [HttpPost("login")]
+        public async Task<IActionResult> Login(LoginDto dto)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(dto.Username);
+                if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+                {
+                    return Unauthorized(new { message = "Invalid username or password" });
+                }
+
+                var token = GenerateJwtToken(user);
+                
+                _logger.LogInformation($"User {dto.Username} logged in successfully");
+                
+                return Ok(new { 
+                    token = token,
+                    userId = user.Id,
+                    username = user.UserName
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during login");
+                return StatusCode(500, new { message = "Internal server error" });
+            }
         }
 
         private string GenerateJwtToken(ApplicationUser user)
         {
-            var claims = new[]
+            var jwtSettings = _configuration.GetSection("Jwt");
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new List<Claim>
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.NameIdentifier, user.Id)
+                new(ClaimTypes.NameIdentifier, user.Id),
+                new(ClaimTypes.Name, user.UserName!),
+                new(JwtRegisteredClaimNames.Sub, user.Id),
+                new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expires = DateTime.UtcNow.AddDays(Convert.ToDouble(_configuration["Jwt:ExpireDays"]));
-
-
             var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Issuer"],
+                issuer: jwtSettings["Issuer"],
+                audience: jwtSettings["Audience"],
                 claims: claims,
-                expires: expires,
-                signingCredentials: creds
+                expires: DateTime.UtcNow.AddDays(int.Parse(jwtSettings["ExpireDays"]!)),
+                signingCredentials: credentials
             );
 
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
-
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterModel model)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var user = new ApplicationUser { UserName = model.Username };
-            var result = await _userManager.CreateAsync(user, model.Password);
-
-            if (result.Succeeded) return Ok(new { Message = "Kullanıcı başarıyla kaydedildi." });
-
-            return BadRequest(result.Errors);
-        }
-
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginModel model)
-        {
-            if (!ModelState.IsValid) return BadRequest(ModelState);
-
-            var user = await _userManager.FindByNameAsync(model.Username);
-            if (user == null || !await _userManager.CheckPasswordAsync(user, model.Password))
-                return Unauthorized(new { Message = "Geçersiz kullanıcı adı veya şifre." });
-
-            var token = GenerateJwtToken(user);
-            return Ok(new { Token = token, Message = "Giriş başarılı." });
-        }
-
-        [HttpPost("guest")]
-        public async Task<IActionResult> GuestLogin()
-        {
-            var guestUsername = "Guest_" + Guid.NewGuid().ToString().Substring(0, 8);
-            var user = new ApplicationUser { UserName = guestUsername };
-            var result = await _userManager.CreateAsync(user);
-
-            if (result.Succeeded)
-            {
-                var token = GenerateJwtToken(user);
-                return Ok(new { Token = token, Message = "Misafir girişi başarılı.", Username = guestUsername });
-            }
-
-            return BadRequest(result.Errors);
-        }
-    }
-
-    public class RegisterModel
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
-    }
-
-    public class LoginModel
-    {
-        public string Username { get; set; }
-        public string Password { get; set; }
     }
 }
