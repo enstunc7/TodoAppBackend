@@ -40,7 +40,7 @@ namespace TodoAppBackend.Controllers
                 var user = new ApplicationUser 
                 { 
                     UserName = dto.Username,
-                    Email = $"{dto.Username}@todoapp.com" // Dummy email
+                    Email = $"{dto.Username}@todoapp.com"
                 };
 
                 var result = await _userManager.CreateAsync(user, dto.Password);
@@ -91,6 +91,40 @@ namespace TodoAppBackend.Controllers
             }
         }
 
+        [HttpPost("guest-login")]
+        public IActionResult GuestLogin()
+        {
+            try
+            {
+                // Misafir kullanıcısı için benzersiz bir kimlik ve isim oluştur.
+                var guestId = $"guest_{Guid.NewGuid()}";
+                var guestUsername = $"Guest_{Guid.NewGuid().ToString().Substring(0, 8)}";
+
+                // Misafir kullanıcı nesnesini bellekte oluştur, veritabanına kaydetme.
+                var guestUser = new ApplicationUser
+                {
+                    Id = guestId,
+                    UserName = guestUsername,
+                    IsGuest = true
+                };
+
+                var token = GenerateJwtToken(guestUser);
+
+                _logger.LogInformation($"Guest user {guestUser.UserName} logged in successfully");
+
+                return Ok(new {
+                    token = token,
+                    userId = guestUser.Id,
+                    username = guestUser.UserName
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during guest login");
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+        }
+
         private string GenerateJwtToken(ApplicationUser user)
         {
             var jwtSettings = _configuration.GetSection("Jwt");
@@ -105,6 +139,12 @@ namespace TodoAppBackend.Controllers
                 new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(DateTime.UtcNow).ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64)
             };
+            
+            // Misafir kullanıcılar için özel bir claim ekle.
+            if (user.IsGuest)
+            {
+                claims.Add(new Claim("IsGuest", "true"));
+            }
 
             var token = new JwtSecurityToken(
                 issuer: jwtSettings["Issuer"],
