@@ -92,27 +92,39 @@ namespace TodoAppBackend.Controllers
         }
 
         [HttpPost("guest-login")]
-        public IActionResult GuestLogin()
+        public async Task<IActionResult> GuestLogin()
         {
             try
             {
-                // Misafir kullanıcısı için benzersiz bir kimlik ve isim oluştur.
                 var guestId = $"guest_{Guid.NewGuid()}";
                 var guestUsername = $"Guest_{Guid.NewGuid().ToString().Substring(0, 8)}";
 
-                // Misafir kullanıcı nesnesini bellekte oluştur, veritabanına kaydetme.
                 var guestUser = new ApplicationUser
                 {
                     Id = guestId,
                     UserName = guestUsername,
+                    Email = $"{guestUsername}@todoapp.com",
                     IsGuest = true
                 };
 
+                // ❗ Misafir kullanıcı için rastgele bir şifre tanımlıyoruz
+                var result = await _userManager.CreateAsync(guestUser, "Guest123!");
+
+                if (!result.Succeeded)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Guest creation failed",
+                        errors = result.Errors.Select(e => e.Description)
+                    });
+                }
+
                 var token = GenerateJwtToken(guestUser);
 
-                _logger.LogInformation($"Guest user {guestUser.UserName} logged in successfully");
+                _logger.LogInformation($"Guest user {guestUser.UserName} created & logged in.");
 
-                return Ok(new {
+                return Ok(new
+                {
                     token = token,
                     userId = guestUser.Id,
                     username = guestUser.UserName
@@ -124,6 +136,7 @@ namespace TodoAppBackend.Controllers
                 return StatusCode(500, new { message = "Internal server error" });
             }
         }
+
 
         private string GenerateJwtToken(ApplicationUser user)
         {
