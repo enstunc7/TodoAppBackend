@@ -9,11 +9,11 @@ using TodoAppBackend.Data;
 
 #nullable disable
 
-namespace TodoAppBackend.Data.Migrations
+namespace TodoAppBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250909074315_AddDailyGoalAndCompletedAt")]
-    partial class AddDailyGoalAndCompletedAt
+    [Migration("20250909125656_CreateTodoTags_NoCascade")]
+    partial class CreateTodoTags_NoCascade
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -242,13 +242,19 @@ namespace TodoAppBackend.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("NameNormalized")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "NameNormalized")
+                        .IsUnique();
 
                     b.ToTable("Tags");
                 });
@@ -390,7 +396,7 @@ namespace TodoAppBackend.Data.Migrations
                     b.HasOne("TodoAppBackend.Models.Todo", null)
                         .WithMany()
                         .HasForeignKey("TodoId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });
 

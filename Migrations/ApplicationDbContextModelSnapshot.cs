@@ -239,13 +239,19 @@ namespace TodoAppBackend.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("NameNormalized")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId", "NameNormalized")
+                        .IsUnique();
 
                     b.ToTable("Tags");
                 });
@@ -387,7 +393,7 @@ namespace TodoAppBackend.Migrations
                     b.HasOne("TodoAppBackend.Models.Todo", null)
                         .WithMany()
                         .HasForeignKey("TodoId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
                 });
 

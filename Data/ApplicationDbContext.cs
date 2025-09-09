@@ -63,7 +63,7 @@ namespace TodoAppBackend.Data
                         .HasOne<Todo>()
                         .WithMany()
                         .HasForeignKey("TodoId")
-                        .OnDelete(DeleteBehavior.Cascade),
+                        .OnDelete(DeleteBehavior.NoAction),
                     j =>
                     {
                         j.HasKey("TodoId", "TagId");

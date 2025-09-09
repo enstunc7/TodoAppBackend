@@ -1,5 +1,7 @@
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/appsettings.Development.json
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/appsettings.json
+/Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/todo-frontend/package-lock.json
+/Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/todo-frontend/package.json
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/TodoAppBackend.staticwebassets.endpoints.json
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/TodoAppBackend
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/TodoAppBackend.deps.json
