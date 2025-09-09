@@ -12,8 +12,8 @@ using TodoAppBackend.Data;
 namespace TodoAppBackend.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250902132408_AddCreatedAtToTodos")]
-    partial class AddCreatedAtToTodos
+    [Migration("20250908180831_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -177,6 +177,9 @@ namespace TodoAppBackend.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsGuest")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -223,6 +226,30 @@ namespace TodoAppBackend.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("TodoAppBackend.Models.Tag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("Tags");
+                });
+
             modelBuilder.Entity("TodoAppBackend.Models.Todo", b =>
                 {
                     b.Property<int>("Id")
@@ -232,7 +259,9 @@ namespace TodoAppBackend.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
@@ -254,6 +283,21 @@ namespace TodoAppBackend.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Todos");
+                });
+
+            modelBuilder.Entity("TodoTags", b =>
+                {
+                    b.Property<int>("TodoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TodoId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("TodoTags");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -307,15 +351,48 @@ namespace TodoAppBackend.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("TodoAppBackend.Models.Todo", b =>
+            modelBuilder.Entity("TodoAppBackend.Models.Tag", b =>
                 {
                     b.HasOne("TodoAppBackend.Models.ApplicationUser", "User")
-                        .WithMany()
+                        .WithMany("Tags")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TodoAppBackend.Models.Todo", b =>
+                {
+                    b.HasOne("TodoAppBackend.Models.ApplicationUser", "User")
+                        .WithMany("Todos")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TodoTags", b =>
+                {
+                    b.HasOne("TodoAppBackend.Models.Tag", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("TodoAppBackend.Models.Todo", null)
+                        .WithMany()
+                        .HasForeignKey("TodoId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TodoAppBackend.Models.ApplicationUser", b =>
+                {
+                    b.Navigation("Tags");
+
+                    b.Navigation("Todos");
                 });
 #pragma warning restore 612, 618
         }

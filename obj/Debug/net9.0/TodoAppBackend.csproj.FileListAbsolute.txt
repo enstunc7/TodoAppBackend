@@ -1,11 +1,3 @@
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.csproj.AssemblyReference.cache
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/rpswa.dswa.cache.json
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.GeneratedMSBuildEditorConfig.editorconfig
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.AssemblyInfoInputs.cache
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.AssemblyInfo.cs
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.csproj.CoreCompileInputs.cache
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.MvcApplicationPartsAssemblyInfo.cs
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.MvcApplicationPartsAssemblyInfo.cache
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/appsettings.Development.json
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/appsettings.json
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/TodoAppBackend.staticwebassets.endpoints.json
@@ -155,6 +147,15 @@
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/runtimes/win/lib/net6.0/System.Runtime.Caching.dll
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/runtimes/win/lib/net6.0/System.Security.Cryptography.ProtectedData.dll
 /Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/runtimes/win/lib/net6.0/System.Windows.Extensions.dll
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.csproj.AssemblyReference.cache
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/rpswa.dswa.cache.json
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.GeneratedMSBuildEditorConfig.editorconfig
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.AssemblyInfoInputs.cache
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.AssemblyInfo.cs
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.csproj.CoreCompileInputs.cache
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.MvcApplicationPartsAssemblyInfo.cs
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.MvcApplicationPartsAssemblyInfo.cache
+/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.sourcelink.json
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/rjimswa.dswa.cache.json
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/rjsmrazor.dswa.cache.json
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/rjsmcshtml.dswa.cache.json
@@ -169,4 +170,3 @@
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.pdb
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.genruntimeconfig.cache
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/ref/TodoAppBackend.dll
-/Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.sourcelink.json

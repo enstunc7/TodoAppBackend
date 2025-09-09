@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using TodoAppBackend.Data;
 using TodoAppBackend.Models;
-using Microsoft.AspNetCore.Identity;
 
 namespace TodoAppBackend.Controllers
 {
@@ -24,246 +24,289 @@ namespace TodoAppBackend.Controllers
             _userManager = userManager;
         }
 
-        private string GetCurrentUserId()
+        private async Task<(string userId, bool isGuest)> GetUserInfoAsync()
         {
-            return User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var user = await _userManager.FindByIdAsync(userId);
+            return (userId, user != null && user.IsGuest);
         }
-        
-        // Sadece Inbox ekranına erişim izni olan misafir kullanıcılar için
+
+        // GET: /api/todos/inbox
         [HttpGet("inbox")]
-        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<Todo>>> GetInboxTodos()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var todos = await _context.Todos
-                    .Where(t => t.UserId == userId && t.DueDate == null)
-                    .OrderByDescending(t => t.CreatedAt)
-                    .ToListAsync();
+            var (userId, _) = await GetUserInfoAsync();
 
-                return Ok(todos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting inbox todos");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            var todos = await _context.Todos
+                .Where(t => t.UserId == userId && t.DueDate == null)
+                .Include(t => t.Tags)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            return Ok(todos);
         }
-        
-        // Sadece kayıtlı kullanıcıların erişimi için
+
+        // GET: /api/todos/today
         [HttpGet("today")]
         public async Task<ActionResult<IEnumerable<Todo>>> GetTodayTodos()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user != null && user.IsGuest)
-                {
-                    return StatusCode(403, new { message = "Misafir kullanıcılar bu sayfaya erişemez. Lütfen giriş yapın veya kaydolun." });
-                }
+            var (userId, isGuest) = await GetUserInfoAsync();
 
-                var today = DateTime.UtcNow.Date;
-                var todos = await _context.Todos
-                    .Where(t => t.UserId == userId && t.DueDate.HasValue && t.DueDate.Value.Date <= today)
-                    .OrderByDescending(t => t.CreatedAt)
-                    .ToListAsync();
-                return Ok(todos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting today todos");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            if (isGuest)
+                return StatusCode(403, new { message = "Misafir kullanıcılar bu sayfaya erişemez." });
+
+            var today = DateTime.UtcNow.Date;
+
+            var todos = await _context.Todos
+                .Where(t => t.UserId == userId && t.DueDate != null && t.DueDate.Value.Date <= today)
+                .Include(t => t.Tags)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            return Ok(todos);
         }
-        
-        // Sadece kayıtlı kullanıcıların erişimi için
+
+        // GET: /api/todos/upcoming
         [HttpGet("upcoming")]
         public async Task<ActionResult<IEnumerable<Todo>>> GetUpcomingTodos()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user != null && user.IsGuest)
-                {
-                    return StatusCode(403, new { message = "Misafir kullanıcılar bu sayfaya erişemez. Lütfen giriş yapın veya kaydolun." });
-                }
+            var (userId, isGuest) = await GetUserInfoAsync();
 
-                var today = DateTime.UtcNow.Date;
-                var todos = await _context.Todos
-                    .Where(t => t.UserId == userId && t.DueDate.HasValue && t.DueDate.Value.Date > today)
-                    .OrderBy(t => t.DueDate)
-                    .ToListAsync();
-                return Ok(todos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting upcoming todos");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            if (isGuest)
+                return StatusCode(403, new { message = "Misafir kullanıcılar bu sayfaya erişemez." });
+
+            var today = DateTime.UtcNow.Date;
+
+            var todos = await _context.Todos
+                .Where(t => t.UserId == userId && t.DueDate != null && t.DueDate.Value.Date > today)
+                .Include(t => t.Tags)
+                .OrderBy(t => t.DueDate)
+                .ToListAsync();
+
+            return Ok(todos);
         }
 
-        // Tüm görevleri getiren genel uç nokta
+        // GET: /api/todos
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Todo>>> GetTodos()
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var todos = await _context.Todos
-                    .Where(t => t.UserId == userId)
-                    .OrderByDescending(t => t.CreatedAt)
-                    .ToListAsync();
+            var (userId, _) = await GetUserInfoAsync();
 
-                return Ok(todos);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting todos");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            var todos = await _context.Todos
+                .Where(t => t.UserId == userId)
+                .Include(t => t.Tags)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync();
+
+            return Ok(todos);
         }
 
-        // Belirli bir görevi getiren uç nokta
+        // GET: /api/todos/{id}
         [HttpGet("{id}")]
         public async Task<ActionResult<Todo>> GetTodo(int id)
         {
-            try
-            {
-                var userId = GetCurrentUserId();
-                var todo = await _context.Todos
-                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            var (userId, _) = await GetUserInfoAsync();
 
-                if (todo == null)
-                {
-                    return NotFound(new { message = "Todo not found" });
-                }
+            var todo = await _context.Todos
+                .Include(t => t.Tags)
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
-                return Ok(todo);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting todo");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+            if (todo == null)
+                return NotFound(new { message = "Görev bulunamadı." });
+
+            return Ok(todo);
         }
 
-        // Yeni görev oluşturan uç nokta
+        // POST: /api/todos
         [HttpPost]
-        public async Task<ActionResult<Todo>> PostTodo(TodoCreateDto dto)
+        public async Task<ActionResult<Todo>> PostTodo([FromBody] TodoCreateDto dto)
         {
-            try
+            var (userId, isGuest) = await GetUserInfoAsync();
+
+            if (isGuest)
             {
-                var userId = GetCurrentUserId();
+                if (dto.DueDate != null)
+                    return BadRequest(new { message = "Misafir kullanıcılar yalnızca due date içermeyen (Inbox) görevler oluşturabilir." });
 
-                // Misafir kullanıcısı için görev sınırını kontrol et
-                var isGuest = User.HasClaim(c => c.Type == "IsGuest" && c.Value == "true");
+                var todayCount = await _context.Todos.CountAsync(t =>
+                    t.UserId == userId && t.CreatedAt.Date == DateTime.UtcNow.Date);
 
-                if (isGuest)
-                {
-                    var todayTodosCount = await _context.Todos
-                        .CountAsync(t => t.UserId == userId && t.CreatedAt.Date == DateTime.UtcNow.Date);
-                    
-                    if (todayTodosCount >= 10)
-                    {
-                        return BadRequest(new { message = "Misafir kullanıcılar günde en fazla 10 görev oluşturabilir." });
-                    }
-                }
-
-                var todo = new Todo
-                {
-                    Title = dto.Title,
-                    IsCompleted = dto.IsCompleted,
-                    DueDate = dto.DueDate,
-                    UserId = userId,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.Todos.Add(todo);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Todo created: {todo.Id} for user {userId}");
-
-                // Sorunlu CreatedAtAction yerine basit bir Ok döndürüyoruz.
-                // Not: CreatedAtAction, yeni oluşturulan kaynağın URI'sini döndürmek için daha doğrudur,
-                // ancak döngüsel referans sorununu çözmek için bu yaklaşımı kullanıyoruz.
-                return Ok(todo);
+                if (todayCount >= 10)
+                    return BadRequest(new { message = "Misafir kullanıcılar günde en fazla 10 görev oluşturabilir." });
             }
-            catch (Exception ex)
+
+            var todo = new Todo
             {
-                _logger.LogError(ex, "Error creating todo");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+                Title = dto.Title,
+                IsCompleted = dto.IsCompleted,
+                DueDate = dto.DueDate,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Todos.Add(todo);
+            await _context.SaveChangesAsync();
+
+            return Ok(todo);
         }
 
-        // Görev güncelleyen uç nokta
+        // PUT: /api/todos/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutTodo(int id, TodoUpdateDto dto)
+        public async Task<IActionResult> PutTodo(int id, [FromBody] TodoUpdateDto dto)
         {
-            try
+            var (userId, isGuest) = await GetUserInfoAsync();
+
+            if (isGuest)
+                return StatusCode(403, new { message = "Misafir kullanıcılar görev güncelleyemez." });
+
+            var todo = await _context.Todos.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (todo == null)
+                return NotFound(new { message = "Görev bulunamadı." });
+            var wasCompleted = todo.IsCompleted;
+            todo.Title = dto.Title;
+            todo.IsCompleted = dto.IsCompleted;
+            todo.DueDate = dto.DueDate;
+
+            if (!wasCompleted && dto.IsCompleted)
             {
-                var userId = GetCurrentUserId();
-                var todo = await _context.Todos
-                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
-
-                if (todo == null)
-                {
-                    return NotFound(new { message = "Todo not found" });
-                }
-
-                // Misafir kullanıcılar görev detaylarını güncelleyemez.
-                var isGuest = User.HasClaim(c => c.Type == "IsGuest" && c.Value == "true");
-                if (isGuest)
-                {
-                    return StatusCode(403, new { message = "Misafir kullanıcılar görev detaylarını güncelleyemez." });
-                }
-
-                todo.Title = dto.Title;
-                todo.IsCompleted = dto.IsCompleted;
-                todo.DueDate = dto.DueDate;
-
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation($"Todo updated: {todo.Id}");
-
-                return Ok(todo);
+                // yeni tamamlandı
+                todo.CompletedAt = DateTime.UtcNow;
             }
-            catch (Exception ex)
+            else if (wasCompleted && !dto.IsCompleted)
             {
-                _logger.LogError(ex, "Error updating todo");
-                return StatusCode(500, new { message = "Internal server error" });
+                // geri alındı
+                todo.CompletedAt = null;
             }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(todo);
         }
 
-        // Görev silen uç nokta
+        // DELETE: /api/todos/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTodo(int id)
         {
+            var (userId, isGuest) = await GetUserInfoAsync();
+
+            if (isGuest)
+                return StatusCode(403, new { message = "Misafir kullanıcılar görev silemez." });
+
+            var todo = await _context.Todos.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+
+            if (todo == null)
+                return NotFound(new { message = "Görev bulunamadı." });
+
+            _context.Todos.Remove(todo);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Görev silindi." });
+        }
+
+        // PUT: /api/todos/{id}/tags
+        [HttpPut("{id}/tags")]
+        public async Task<IActionResult> UpdateTodoTags(int id, TodoTagUpdateDto dto)
+        {
             try
             {
-                var userId = GetCurrentUserId();
+                var (userId, isGuest) = await GetUserInfoAsync();
+
+                if (isGuest)
+                    return StatusCode(403, new { message = "Misafir kullanıcılar bu işlemi yapamaz." });
+
                 var todo = await _context.Todos
+                    .Include(t => t.Tags)
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
                 if (todo == null)
-                {
                     return NotFound(new { message = "Todo not found" });
+
+                var tags = await _context.Tags
+                    .Where(tag => dto.TagIds.Contains(tag.Id) && tag.UserId == userId)
+                    .ToListAsync();
+
+                todo.Tags.Clear();
+                foreach (var tag in tags)
+                {
+                    todo.Tags.Add(tag);
                 }
 
-                _context.Todos.Remove(todo);
                 await _context.SaveChangesAsync();
 
-                _logger.LogInformation($"Todo deleted: {id}");
-
-                return Ok(new { message = "Todo deleted successfully" });
+                return Ok(new { message = "Todo etiketleri güncellendi." });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting todo");
+                _logger.LogError(ex, "Error updating todo tags");
                 return StatusCode(500, new { message = "Internal server error" });
             }
+        }
+
+        [HttpGet("calendar")]
+        public async Task<ActionResult<Dictionary<string, List<TodoCalendarItemDto>>>> GetCalendar(
+            [FromQuery] DateTime? from = null,
+            [FromQuery] DateTime? to = null,
+            [FromQuery] string? month = null,
+            [FromQuery] bool includeCompleted = true)
+        {
+            var (userId, isGuest) = await GetUserInfoAsync();
+            if (isGuest)
+                return StatusCode(403, new { message = "Misafir kullanıcılar takvim görünümüne erişemez." });
+
+            DateTime startDateUtc, endDateUtc;
+
+            if (!string.IsNullOrWhiteSpace(month))
+            {
+                // "YYYY-MM" formatında ay
+                if (!DateTime.TryParse($"{month}-01", out var monthStartLocal))
+                    return BadRequest(new { message = "month parametresi 'YYYY-MM' formatında olmalı." });
+
+                startDateUtc = DateTime.SpecifyKind(new DateTime(monthStartLocal.Year, monthStartLocal.Month, 1), DateTimeKind.Utc);
+                endDateUtc   = startDateUtc.AddMonths(1).AddDays(-1);
+            }
+            else
+            {
+                startDateUtc = from?.Date.ToUniversalTime() ?? DateTime.UtcNow.Date.AddDays(-15);
+                endDateUtc   = to?.Date.ToUniversalTime()   ?? DateTime.UtcNow.Date.AddDays(45);
+
+                if (endDateUtc < startDateUtc)
+                    return BadRequest(new { message = "to, from tarihinden küçük olamaz." });
+            }
+
+            var query = _context.Todos
+                .AsNoTracking()
+                .Where(t => t.UserId == userId &&
+                            t.DueDate.HasValue &&
+                            t.DueDate.Value.Date >= startDateUtc.Date &&
+                            t.DueDate.Value.Date <= endDateUtc.Date);
+
+            if (!includeCompleted)
+                query = query.Where(t => !t.IsCompleted);
+
+            var items = await query
+                .Include(t => t.Tags)
+                .Select(t => new
+                {
+                    Date = t.DueDate!.Value.Date,
+                    Item = new TodoCalendarItemDto(
+                        t.Id,
+                        t.Title,
+                        t.IsCompleted,
+                        t.DueDate,
+                        t.Tags.Select(tag => new TagDto { Id = tag.Id, Name = tag.Name }).ToList()
+                    )
+                })
+                .ToListAsync();
+
+            var result = items
+                .GroupBy(x => x.Date.ToString("yyyy-MM-dd"))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(x => x.Item).ToList()
+                );
+
+            return Ok(result);
         }
     }
 }
