@@ -193,16 +193,25 @@ namespace TodoAppBackend.Controllers
             if (isGuest)
                 return StatusCode(403, new { message = "Misafir kullanıcılar görev silemez." });
 
-            var todo = await _context.Todos.FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
+            // ✅ Todo'yu tag'leriyle birlikte çek
+            var todo = await _context.Todos
+                .Include(t => t.Tags)
+                .FirstOrDefaultAsync(t => t.Id == id && t.UserId == userId);
 
             if (todo == null)
                 return NotFound(new { message = "Görev bulunamadı." });
 
+            // ✅ Önce ilişkili TodoTags kayıtlarını temizle
+            todo.Tags.Clear();
+            await _context.SaveChangesAsync();
+
+            // ✅ Sonra Todo'yu sil
             _context.Todos.Remove(todo);
             await _context.SaveChangesAsync();
 
             return Ok(new { message = "Görev silindi." });
         }
+
 
         // PUT: /api/todos/{id}/tags
         [HttpPut("{id}/tags")]
