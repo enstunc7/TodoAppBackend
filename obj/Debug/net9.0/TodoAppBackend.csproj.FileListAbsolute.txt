@@ -172,3 +172,5 @@
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.pdb
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/TodoAppBackend.genruntimeconfig.cache
 /Users/enestunc/Desktop/TodoAppBackend/obj/Debug/net9.0/ref/TodoAppBackend.dll
+/Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/package-lock.json
+/Users/enestunc/Desktop/TodoAppBackend/bin/Debug/net9.0/package.json

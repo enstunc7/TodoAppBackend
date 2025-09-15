@@ -220,8 +220,8 @@ const AuthPanel = ({ onAuth }) => {
 
   return (
     <Card>
-      <div className="space-y-3">
-        <h2 className="text-xl font-semibold">Giriş / Kayıt</h2>
+      
+      <div className="space-y-3">  <h2 className="text-xl font-semibold">Giriş / Kayıt</h2>
         <Input placeholder="Kullanıcı adı" value={username} onChange={e=>setUsername(e.target.value)} />
         <Input placeholder="Şifre" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
         <div className="flex gap-2">
@@ -240,69 +240,143 @@ const GoalsHeader = ({ token, uiTick }) => {
   const [progress, setProgress] = useState(null);
   const [goal, setGoal] = useState(0);
   const [loading, setLoading] = useState(false);
+
+  const [newGoal, setNewGoal] = useState("");
   const [error, setError] = useState("");
 
+  const isGuest = JSON.parse(localStorage.getItem("user") || "{}")?.isGuest;
+
+ 
+
+
+  // 📌 Mevcut verileri yükle
   const load = async () => {
     try {
-      setLoading(true); setError("");
+      setLoading(true);
+      setError("");
       const p = await api("/api/goals/today", { token });
       setProgress(p);
       const g = await api("/api/goals", { token });
-      setGoal(typeof g === 'number' ? g : g?.dailyGoal ?? 0);
-    } catch (e) { setError(e.message); } finally { setLoading(false); }
+      setGoal(typeof g === "number" ? g : g?.dailyGoal ?? 0);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
-  useEffect(()=>{ load(); }, [token, uiTick]);
 
-  const [newGoal, setNewGoal] = useState("");
+  useEffect(() => {
+    load();
+  }, [token, uiTick]);
+
+  // 📌 Güncelle butonu
   const updateGoal = async () => {
+    // boş veya negatif sayı kontrolü
+    if (!newGoal.trim()) {
+      setError("Lütfen bir sayı girin.");
+      return;
+    }
+
+    const v = parseInt(newGoal, 10);
+    if (isNaN(v) || v < 0) {
+      setError("Lütfen geçerli bir sayı girin.");
+      return;
+    }
+
     try {
-      const v = Math.max(0, parseInt(newGoal || "0", 10));
-      await api("/api/goals", { method: "PUT", token, body: { dailyGoal: v } });
+      await api("/api/goals", {
+        method: "PUT",
+        token,
+        body: { dailyGoal: v },
+      });
 
-      // ⬇️ anında ekranda güncelle
       setGoal(v);
-      setProgress(p => p
-        ? { ...p, dailyGoal: v, achieved: p.completedToday >= v }
-        : { completedToday: 0, dailyGoal: v, achieved: v <= 0 }
+      setProgress((p) =>
+        p
+          ? { ...p, dailyGoal: v, achieved: p.completedToday >= v }
+          : { completedToday: 0, dailyGoal: v, achieved: v <= 0 }
       );
-      setNewGoal("");
-      // İstersen sessiz arka plan senkronu da ekleyebilirsin:
-      // load();
-    } catch (e) { setError(e.message); }
-  };
 
+      setNewGoal("");
+      setError("");
+    } catch (e) {
+      setError(e.message);
+    }
+  };
 
   return (
     <Card>
       <div className="flex items-center gap-4 flex-wrap">
-        <div className="text-lg font-semibold">Hedef: {progress ? `${progress.completedToday} / ${progress.dailyGoal}` : `${0} / ${goal}`}</div>
-        {progress?.achieved && <span title="Hedefe ulaşıldı" className="text-2xl">🏆</span>}
-        <div className="ml-auto flex items-center gap-2">
-          <Input placeholder="Günlük hedef" value={newGoal} onChange={e=>setNewGoal(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") updateGoal(); }}style={{width:140}} />
-          <Button onClick={updateGoal}>Kaydet</Button>
+        <div className="text-lg font-semibold">
+          Hedef:{" "}
+          {progress
+            ? `${progress.completedToday} / ${progress.dailyGoal}`
+            : `${0} / ${goal}`}
         </div>
+
+        {progress?.achieved && (
+          <span title="Hedefe ulaşıldı" className="text-2xl">
+            🏆
+          </span>
+        )}
+
+        <div className="ml-auto flex items-center w-full max-w-sm gap-6">
+          <div className="flex flex-col flex-1">
+            <Input
+              type="number"
+              min="0"
+              placeholder="Günlük hedef"
+              value={newGoal}
+              onChange={(e) => setNewGoal(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") updateGoal();
+              }}
+              disabled={isGuest}
+              className="w-32"
+            />
+            {error && (
+              <div className="text-red-600 text-sm mt-1">{error}</div>
+            )}
+          </div>
+
+          <Button
+            onClick={() => {
+              if (isGuest) {
+                setError("Bu işlemi yapmak için yetkiniz yok.");
+                return;
+              }
+              updateGoal();
+            }}
+            disabled={isGuest}
+            className={`px-4 py-2 rounded-md shadow-md transition text-white ${
+              isGuest ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
+            }`}
+          >
+            Kaydet
+          </Button>
+        </div>
+        {isGuest && (
+          <div className="text-red-600 text-sm mt-2">
+            Bu işlemi yapmak için yetkiniz yok. (Misafir kullanıcılar hedef belirleyemez)
+          </div>
+        )}
       </div>
-      {error && <div className="text-red-600 text-sm mt-2">{error}</div>}
     </Card>
   );
 };
 
 
+
 // ✅ Sadece yeni görev oluşturma ve etiket ekleme işi burada
-const TodoCreateForm = ({ token, onCreated }) => {
+const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
   const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);   // yeni görev için
   const [newTag, setNewTag] = useState("");
   const [tagPanelOpen, setTagPanelOpen] = useState(false);
   const [error, setError] = useState("");
-
-  // Etiketleri yükle
-  const loadTags = async () => {
-    try { setTags(await api("/api/tags", { token })); } catch {}
-  };
-  useEffect(() => { loadTags(); }, [token]);
+  const [tagError, setTagError] = useState("");
+  const [pendingTagDelete, setPendingTagDelete] = useState(null);
 
   const toggleSelTag = (id) => {
     setSelectedTags(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -310,22 +384,62 @@ const TodoCreateForm = ({ token, onCreated }) => {
 
   const createTag = async () => {
     try {
+      setTagError("");
       const name = (newTag || "").trim();
-      if (!name) { setError("Etiket adı boş olamaz."); return; }
+      if (!name) {
+        setTagError("Etiket adı boş olamaz.");
+        return;
+      }
+
+      // Aynı isimde etiket var mı kontrol et
+      if (allTags.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+        setTagError("Bu isimde bir etiket zaten var.");
+        return;
+      }
+
       await api("/api/tags", { method: "POST", token, body: { name } });
       setNewTag("");
-      await loadTags();
-    } catch (e) { setError(e.message); }
+      await reloadTags(); 
+    } catch (e) {
+      setTagError(e.message || "Etiket oluşturulamadı.");
+    }
   };
 
   const create = async () => {
     try {
       setError("");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      if (storedUser?.isGuest) {
+        const existing = await api("/api/todos", { token });
+        if (existing.length >= 10) {
+          setError("Misafir kullanıcı en fazla 10 görev oluşturabilir.");
+          return;
+        }
+      }
+
+      const titleTrimmed = title.trim();
+      if (!titleTrimmed) {
+        setError("Başlık boş olamaz.");
+        return;
+      }
+
+      // ⛔ Aynı başlığa sahip görev var mı kontrolü
+      const existing = await api("/api/todos", { token });
+      const sameTitle = existing.some(
+        (t) => t.title.trim().toLowerCase() === titleTrimmed.toLowerCase()
+      );
+      if (sameTitle) {
+        setError("Bu başlığa sahip bir görev zaten var.");
+        return;
+      }
+
       const body = {
-        title,
+        title: titleTrimmed,
         isCompleted: false,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : null
+        dueDate: dueDate ? new Date(dueDate).toLocaleDateString("en-CA") : null
+
       };
+
       const t = await api("/api/todos", { method: "POST", token, body });
 
       if (selectedTags.length) {
@@ -336,92 +450,107 @@ const TodoCreateForm = ({ token, onCreated }) => {
         });
       }
 
-      setTitle(""); setDueDate(""); setSelectedTags([]);
-      onCreated?.(); // dışarıya haber ver (listeyi yenilesin)
-    } catch (e) { setError(e.message); }
+      setTitle("");
+      setDueDate("");
+      setSelectedTags([]);
+      onCreated?.();
+    } catch (e) {
+      setError(e.message);
+    }
   };
 
+
   return (
-        <Card className="create-card">
-          <h2 className="text-lg font-semibold mb-3">Yeni Görev Ekle</h2>
+    <Card className="create-card">
+      <h2 className="text-lg font-semibold mb-3">Yeni Görev Ekle</h2>
 
-          <div className="create-form">
-            {/* Başlık */}
-            <div className="form-group">
-              <label className="block text-sm mb-1">Başlık</label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Yeni görev"
-              />
-            </div>
+      <div className="create-form">
+        {/* Başlık */}
+        <div className="form-group">
+          <label className="block text-sm mb-1">Başlık</label>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Yeni görev"
+          />
+        </div>
 
-            {/* 📅 Tarih (DatePicker ile) */}
-            <div className="form-group">
-              <label className="block text-sm mb-1">Tarih</label>
-              <DatePicker
-                selected={dueDate ? new Date(dueDate) : null}
-                onChange={(date) =>
-                  setDueDate(date ? date.toISOString() : "")
-                }
-                dateFormat="dd.MM.yyyy"
-                placeholderText="Tarih seç"
-                className="input"
-              />
-            </div>
+        {/* 📅 Tarih */}
+        <div className="form-group">
+          <label className="block text-sm mb-1">Tarih</label>
+          <DatePicker
+            selected={dueDate ? new Date(dueDate) : null}
+            onChange={(date) => setDueDate(date ? date.toISOString() : "")}
+            dateFormat="dd.MM.yyyy"
+            placeholderText="Tarih seç"
+            className="input"
+          />
+        </div>
 
-            {/* 🏷️ Etiket seçici */}
-            <div className="form-group relative">
-              <Button
+        {/* 🏷️ Etiket seçici */}
+        <div className="form-group mt-2">
+          <Button
+            type="button"
+            onClick={() => setTagPanelOpen((v) => !v)}
+            className="px-4 py-2 border rounded-md bg-white shadow-sm"
+          >
+            Etiket Seç
+          </Button>
+
+          {tagPanelOpen && (
+            <div
+              className="
+                absolute z-20 mt-2 w-72
+                bg-white border border-gray-200 rounded-lg shadow-xl
+                p-4 flex flex-col gap-3
+                max-h-64 overflow-y-auto
+                
+              "
+            >
+              {/* ❌ Sağ üst köşe kapatma butonu */}
+              <button
                 type="button"
-                onClick={() => setTagPanelOpen((v) => !v)}
-                className="px-4 py-2 border rounded-md bg-white shadow-sm"
+                onClick={() => setTagPanelOpen(false)}
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-lg"
               >
-                Etiket Seç
-              </Button>
+                ×
+              </button>
 
-              {tagPanelOpen && (
-                <div className="absolute z-20 mt-2 w-64 bg-white border rounded-lg shadow-lg p-3 space-y-2">
-                  <div className="space-y-1 max-h-48 overflow-y-auto">
-                    {tags.length === 0 && (
-                      <div className="text-sm text-gray-500">Hiç etiket yok</div>
-                    )}
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {allTags.length === 0 && (
+                  <div className="text-sm text-gray-500">Hiç etiket yok</div>
+                )}
 
-                    {tags.map(tag => {
-                      const selected = selectedTags.includes(tag.id);
-                      return (
-                        <div key={tag.id} className="tag-item">
-                          <button
-                            type="button"
-                            onClick={() => toggleSelTag(tag.id)}
-                            className="flex-1 flex items-center gap-1 text-left"
-                          >
-                            <span className="text-gray-500">#</span>
-                            <span>{tag.name}</span>
-                            {selected && <span className="text-green-600 text-base">✅</span>}
-                          </button>
+                <div className="tag-chip-container flex flex-wrap gap-2">
+                  {allTags.map(tag => {
+                    const selected = selectedTags.includes(tag.id);
+                    return (
+                      <div
+                        key={tag.id}
+                        className={`tag-chip ${selected ? "selected" : ""}`}
+                      >
+                        <span
+                          className="tag-label"
+                          onClick={() => toggleSelTag(tag.id)}
+                        >
+                          #{tag.name}
+                        </span>
+                        <button
+                          type="button"
+                          className="tag-remove"
+                          onClick={() => setPendingTagDelete(tag)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
-                          <button
-                            type="button"
-                            className="delete-btn"
-                            onClick={async () => {
-                              if (confirm(`"${tag.name}" etiketini silmek istiyor musun?`)) {
-                                await api(`/api/tags/${tag.id}`, { method: "DELETE", token });
-                                await loadTags();
-                              }
-                            }}
-                          >
-                            Sil
-                          </button>
-                        </div>
-                      );
-                    })}
-
-  
-
-                  </div>
-
-                  {/* ➕ Yeni etiket */}
+              {/* ➕ Yeni etiket */}
+              {!JSON.parse(localStorage.getItem("user") || "{}")?.isGuest && (
+                <>
                   <div className="flex items-center gap-2 pt-2 border-t">
                     <input
                       type="text"
@@ -434,49 +563,94 @@ const TodoCreateForm = ({ token, onCreated }) => {
                           await createTag();
                         }
                       }}
-                      className="tag-add-input px-3 py-1.5 border border-gray-300 rounded-full text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      className="tag-add-input px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     />
-                    <Button
-                      type="button"
-                      onClick={createTag}
-                      className="px-2 py-1 border rounded-md text-sm bg-gray-100 hover:bg-gray-200"
-                    >
-                      Ekle
-                    </Button>
+                    <Button type="button" onClick={createTag}>Ekle</Button>
                   </div>
-                </div>
+                  {tagError && <div className="text-red-600 text-sm mt-1">{tagError}</div>}
+                </>
               )}
-            </div>
 
-            {/* ✅ Sağ alta sabitlenmiş mavi buton */}
-            <button type="button" onClick={create} className="ekle-btn">
-              Ekle
+              {tagError && <div className="text-red-600 text-sm mt-1">{tagError}</div>}
+            </div>
+          )}
+        </div>
+        {error && <div className="text-red-600 text-sm mt-2 whitespace-pre-wrap">{error}</div>}
+        <button type="button" onClick={create} className="ekle-btn">Ekle</button>
+      </div>
+
+    {pendingTagDelete && (
+      <div className="modal-backdrop">
+        <div className="modal">
+          <h3 className="modal__title">Etiketi Sil</h3>
+          <p className="modal__text">
+            “{pendingTagDelete.name}” etiketini silmek istediğine emin misiniz?
+          </p>
+          <div className="modal__actions">
+            <button className="btn" onClick={() => setPendingTagDelete(null)}>
+              İptal
+            </button>
+            <button
+              className="btn btn--danger"
+              onClick={async () => {
+                await api(`/api/tags/${pendingTagDelete.id}`, { method: "DELETE", token });
+                await reloadTags();
+                setPendingTagDelete(null);
+              }}
+            >
+              Sil
             </button>
           </div>
-
-          {error && (
-            <div className="text-red-600 text-sm mt-2 whitespace-pre-wrap">{error}</div>
-          )}
-        </Card>
-
+        </div>
+      </div>
+    )}  
+    </Card>
   );
 };
 
 
+
 // ---- Todos list / create ----
-  const TodoList = ({ token, scope, filterTagIds = [], setFilterTagIds, tab, setTab, isTagPanelOpen, setIsTagPanelOpen, onChanged }) => {
+  const TodoList = ({ 
+  token, scope, filterTagIds = [], setFilterTagIds, 
+  tab, setTab, isTagPanelOpen, setIsTagPanelOpen, onChanged,
+  allTags, reloadTags, uiTick, isGuest
+}) => {
   const [todos, setTodos] = useState([]);
   const [tags, setTags] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingComplete, setPendingComplete] = useState(null);
+  const [editingTodo, setEditingTodo] = useState(null);
+  const [showTagPanel, setShowTagPanel] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [tagError, setTagError] = useState("");
+  const [editError, setEditError] = useState("");
+  const [pendingTagDelete, setPendingTagDelete] = useState(null);
+
+  useEffect(() => {
+    const loadTags = async () => {
+      try {
+        const tg = await api("/api/tags", { token });
+        setTags(tg);
+      } catch (e) {
+        console.error("Etiketler yüklenemedi:", e);
+      }
+    };
+    if (token) loadTags();
+  }, [token, uiTick]);
 
     // Chip picker için toggle helper
 
   const deleteTodo = async (id) => {
     try {
       setError("");
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      if (storedUser?.isGuest) {
+        setError("Misafir kullanıcı görev silemez.");
+        return;
+      }
       await api(`/api/todos/${id}`, { method: "DELETE", token });
       await load();                 // listeyi yenile
       onChanged?.();
@@ -508,15 +682,20 @@ const TodoCreateForm = ({ token, onCreated }) => {
         : data;
       setTodos(filtered);
      
-      const tg = await api("/api/tags", { token });
-      setTags(tg);
+      
     } catch (e) { setError(e.message); } finally { setLoading(false); }
   };
-  useEffect(()=>{ load(); }, [path, filterTagIds.join(",")]);
+  useEffect(()=>{ load(); }, [path, filterTagIds.join(","), uiTick]);
+
 
 
   const toggle = async (todo) => {
     try {
+      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+      if (storedUser?.isGuest) {
+        setError("Misafir kullanıcı görev tamamlayamaz.");
+        return;
+      }
       await api(`/api/todos/${todo.id}`, { method: "PUT", token, body: { title: todo.title, isCompleted: !todo.isCompleted, dueDate: todo.dueDate } });
       await load();
       onChanged?.();
@@ -550,6 +729,36 @@ const TodoCreateForm = ({ token, onCreated }) => {
 
     await assignTags(todo.id, nextIds);
   };
+  // Düzenleme modalında "Yeni etiket" eklemek için helper
+    const createNewTag = async () => {
+      const name = (newTag || "").trim();
+
+      // 1) Boş kontrolü
+      if (!name) {
+        setTagError("Etiket adı boş olamaz.");
+        return;
+      }
+
+      // 2) İsteğe bağlı: Frontend kopya adı kontrolü
+      if (allTags.some(t => (t.name || "").toLowerCase() === name.toLowerCase())) {
+        setTagError("Bu adla bir etiket zaten var.");
+        return;
+      }
+
+      try {
+        // 3) Sunucuya eklet
+        await api("/api/tags", { method: "POST", token, body: { name } });
+
+        // 4) Temizle + listeyi yenile
+        setNewTag("");
+        setTagError("");
+        await reloadTags();
+      } catch (e) {
+        // 5) Sunucu hata mesajını göster
+        setTagError(e.message || "Etiket eklenemedi.");
+      }
+    };
+
 
 
 
@@ -562,56 +771,68 @@ const TodoCreateForm = ({ token, onCreated }) => {
       {/* ✅ Görevler + sekme toolbar kutusu */}
       <Card>
         {/* Sekmeler buraya taşındı */}
-        <div className="toolbar mb-4">
-          {[
-            { key: "inbox", label: "Inbox" },
-            { key: "today", label: "Today" },
-            { key: "upcoming", label: "Upcoming" },
-          ].map(x => (
-            <Button
-              key={x.key}
-              variant={tab === x.key ? "primary" : "default"}
-              onClick={() => setTab(x.key)}
-            >
-              {x.label}
-            </Button>
-          ))}
+        <div className="toolbar mb-4 flex justify-between items-center">
+          <div className="flex gap-2">
+            {[
+              { key: "inbox", label: "Inbox" },
+              { key: "today", label: "Today" },
+              { key: "upcoming", label: "Upcoming" },
+            ].map(x => {
+              const isGuest = JSON.parse(localStorage.getItem("user") || "{}")?.isGuest;
+              const disabled = isGuest && x.key !== "inbox";
+              return (
+                <Button
+                  key={x.key}
+                  variant={tab === x.key ? "primary" : "default"}
+                  onClick={() => !disabled && setTab(x.key)}
+                  disabled={disabled}
+                  className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                >
+                  {x.label}
+                </Button>
+              );
+            })}
+
+          </div>
 
           {/* Etiket filtresi dropdown aynı şekilde buraya */}
-          <div className="dropdown">
-            <Button onClick={() => setIsTagPanelOpen(v => !v)}>Etiket Filtresi</Button>
-            {isTagPanelOpen && (
-              <div className="dropdown__panel p-3 bg-white rounded-lg shadow-md space-y-2">
-                {tags.length === 0 && (
-                  <div className="text-sm text-gray-500">Hiç etiket yok</div>
-                )}
+          <div className="relative ml-auto">
+            <Button
+              onClick={() => {
+                if (!JSON.parse(localStorage.getItem("user") || "{}")?.isGuest) {
+                  setIsTagPanelOpen(v => !v);
+                }
+              }}
+              className={JSON.parse(localStorage.getItem("user") || "{}")?.isGuest ? "opacity-50 cursor-not-allowed" : ""}
+            >
+              Etiket Filtresi
+            </Button>
 
-                {tags.map(tag => {
-                  const selected = filterTagIds.includes(Number(tag.id));
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => {
-                        const id = Number(tag.id);
-                        setFilterTagIds(prev =>
-                          prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                        );
-                      }}
-                      className={`flex items-center justify-between w-full px-3 py-2 rounded-md text-sm font-medium border transition ${
-                        selected
-                          ? "bg-blue-50 border-blue-400 text-blue-800"
-                          : "bg-white border-gray-300 text-gray-800 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="flex items-center gap-1">
-                        <span className="text-gray-500">#</span>
-                        <span>{tag.name}</span>
-                      </span>
-                      {selected && <span className="text-green-600 text-base">✅</span>}
-                    </button>
-                  );
-                })}
+            {isTagPanelOpen && (
+              <div className="absolute right-0 mt-2 z-20 w-64 bg-white rounded-lg shadow-md border p-3">
+                <div className="flex flex-wrap gap-2">
+                  {allTags.map(tag => {
+                    const selected = filterTagIds.includes(Number(tag.id));
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => {
+                          const id = Number(tag.id);
+                          setFilterTagIds(prev =>
+                            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                          );
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm border transition ${
+                          selected
+                            ? "bg-blue-50 border-blue-400 text-blue-800"
+                            : "bg-white border-gray-300 text-gray-800 hover:bg-gray-50"
+                        }`}
+                      >
+                        #{tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 {filterTagIds.length > 0 && (
                   <button
@@ -624,27 +845,23 @@ const TodoCreateForm = ({ token, onCreated }) => {
                 )}
               </div>
             )}
-
-
           </div>
+
         </div>
 
        <h2 className="text-lg font-semibold mb-3">Görevler</h2>
-        <div className="overflow-x-auto">
-          <table className="todo-table min-w-full border border-gray-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto max-h-[400px] overflow-y-auto rounded-lg border border-gray-200">
+          <table className="todo-table min-w-full">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Görev</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">Durum</th>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b">İşlemler<table></table></th>
+                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b w-1/2">Görev</th>
+                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">Durum</th>
+                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {todos.map(t => (
-                <tr
-                  key={t.id}
-                  className={`border-b ${t.isCompleted ? "row-done" : ""}`}
-                >
+                <tr key={t.id} className="border-b">
                   <td className="px-4 py-2 align-top">
                     <div className="font-medium">{t.title}</div>
 
@@ -674,22 +891,54 @@ const TodoCreateForm = ({ token, onCreated }) => {
                       {t.isCompleted ? "Tamamlandı" : "Bekliyor"}
                     </span>
                   </td>
-                  <td className="px-4 py-2 space-x-2">
-                    <button
-                      onClick={() => !t.isCompleted && setPendingComplete(t)}
-                      disabled={t.isCompleted}
-                      className={`btn-complete ${t.isCompleted ? "btn-disabled" : ""}`}
-                    >
-                      Tamamlandı
-                    </button>
+                  <td className="px-4 py-2">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={() => !isGuest && !t.isCompleted && setPendingComplete(t)}
+                        disabled={isGuest || t.isCompleted}
+                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                          isGuest || t.isCompleted
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-blue-500 hover:bg-blue-600"
+                        }`}
+                      >
+                        Tamamlandı
+                      </button>
 
-                    <button
-                      onClick={() => setPendingDelete({ id: t.id, title: t.title })}
-                      className="btn-delete"
-                    >
-                      Sil
-                    </button>
+                      <button
+                        onClick={() => !isGuest && setPendingDelete({ id: t.id, title: t.title })}
+                        disabled={isGuest}
+                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                          isGuest
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-red-500 hover:bg-red-600"
+                        }`}
+                      >
+                        Sil
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          if (!isGuest) {
+                            setEditingTodo({
+                              ...t,
+                              tagIds: (t.tags || []).map(tag => tag.id)
+                            });
+                          }
+                        }}
+                        disabled={isGuest}
+                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                          isGuest
+                            ? "bg-gray-300 cursor-not-allowed"
+                            : "bg-yellow-400 hover:bg-yellow-500"
+                        }`}
+                      >
+                        Düzenle
+                      </button>
+                    </div>
                   </td>
+
+
 
                 </tr>
               ))}
@@ -730,29 +979,266 @@ const TodoCreateForm = ({ token, onCreated }) => {
         </div>
       )}
       {pendingComplete && (
-      <div className="modal-backdrop" role="dialog" aria-modal="true">
-        <div className="modal">
-          <h3 className="modal__title">Görevi Tamamla</h3>
-          <p className="modal__text">
-            “{pendingComplete.title}” görevini tamamlandı olarak işaretlemek istiyor musunuz?
-          </p>
-          <div className="modal__actions">
-            <button className="btn" onClick={() => setPendingComplete(null)}>
-              İptal
-            </button>
-            <button
-              className="btn btn--primary"
-              onClick={async () => {
-                await toggle(pendingComplete);
-                setPendingComplete(null);
-              }}
-            >
-              Onayla
-            </button>
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal">
+            <h3 className="modal__title">Görevi Tamamla</h3>
+            <p className="modal__text">
+              “{pendingComplete.title}” görevini tamamlandı olarak işaretlemek istiyor musunuz?
+            </p>
+            <div className="modal__actions">
+              <button className="btn" onClick={() => setPendingComplete(null)}>
+                İptal
+              </button>
+              <button
+                className="btn btn--primary"
+                onClick={async () => {
+                  await toggle(pendingComplete);
+                  setPendingComplete(null);
+                }}
+              >
+                Onayla
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
+      {editingTodo && !JSON.parse(localStorage.getItem("user") || "{}")?.isGuest && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3 className="modal__title text-2xl font-bold text-gray-900">
+              Görevi Düzenle
+            </h3>
+
+            <div className="space-y-3">
+              <label className="block text-sm">
+                Başlık
+                <Input
+                  value={editingTodo.title}
+                  onChange={(e)=>setEditingTodo({...editingTodo, title: e.target.value})}
+                />
+              </label>
+
+              {/* 📅 Tarih */}
+              <div className="form-group">
+                <div className="mb-1">
+                  <label className="block text-sm">Tarih</label>
+                </div>
+                <DatePicker
+                  selected={editingTodo.dueDate ? new Date(editingTodo.dueDate) : null}
+                  onChange={(date)=>setEditingTodo({...editingTodo, dueDate: date ? date.toISOString() : null})}
+                  dateFormat="dd.MM.yyyy"
+                  className="input block w-full"
+                  placeholderText="Tarih seç"
+                />
+              </div>
+
+              {/* ✅ Tamamlandı */}
+              <div className="form-group">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={editingTodo.isCompleted}
+                    onChange={(e)=>setEditingTodo({...editingTodo, isCompleted: e.target.checked})}
+                  />
+                  Tamamlandı
+                </label>
+              </div>
+
+
+              {/* 🏷️ Etiket seçici */}
+              <div className="form-group relative">
+                <Button
+                  type="button"
+                  onClick={() => setShowTagPanel((v) => !v)}
+                  className="px-4 py-2 border rounded-md bg-white shadow-sm"
+                >
+                  Etiket Seç
+                </Button>
+                
+
+                {showTagPanel && (
+                  <div className="
+                      absolute z-20 mt-2 w-72
+                      bg-white border border-gray-200 rounded-lg shadow-xl
+                      p-4 flex flex-col gap-3
+                      max-h-64 overflow-y-auto
+                      
+                    ">  
+                    
+                    {/* ❌ Kapat butonu */}
+                    <button
+                      type="button"
+                      onClick={() => setShowTagPanel(false)}
+                      className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-lg"
+                    >
+                      ✕
+                    </button>
+
+                    <div className="tag-chip-container flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+                      {allTags.length === 0 && (
+                        <div className="text-sm text-gray-500">Hiç etiket yok</div>
+                      )}
+
+                      {allTags.map(tag => {
+                        const selected = editingTodo.tagIds?.includes(tag.id);
+                        return (
+                          <div
+                            key={tag.id}
+                            className={`tag-chip ${selected ? "selected" : ""}`}
+                          >
+                            <span
+                              className="tag-label"
+                              onClick={() => {
+                                const ids = editingTodo.tagIds || [];
+                                setEditingTodo({
+                                  ...editingTodo,
+                                  tagIds: selected
+                                    ? ids.filter(x => x !== tag.id)
+                                    : [...ids, tag.id]
+                                });
+                              }}
+                            >
+                              #{tag.name}
+                            </span>
+                            <button
+                              type="button"
+                              className="tag-remove"
+                              onClick={() => setPendingTagDelete(tag)}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* ➕ Yeni etiket */}
+                    <div className="flex items-center gap-2 pt-2 border-t">
+                      <input
+                        type="text"
+                        placeholder="Yeni etiket"
+                        value={newTag}
+                        onChange={(e) => {
+                          setNewTag(e.target.value);
+                          setTagError(""); 
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            await createNewTag();
+                          }
+                        }}
+                        className="tag-add-input px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      <Button
+                        type="button"
+                        onClick={createNewTag}
+                        className="px-2 py-1 border rounded-md text-sm bg-gray-100 hover:bg-gray-200"
+                      >
+                        Ekle
+                      </Button>
+                    </div>
+
+                    {tagError && <div className="text-red-600 text-xs mt-1">{tagError}</div>}
+                  </div>
+                )}
+
+
+              </div>
+
+            </div>
+
+            <div className="modal__actions mt-4 flex justify-end gap-2">
+              <button
+                className="btn"
+                onClick={() => setEditingTodo(null)}
+              >
+                İptal
+              </button>
+
+              <button
+                className="btn btn--primary"
+                onClick={async () => {
+                  const newTitle = editingTodo.title.trim();
+                  setEditError("");
+
+                  if (!newTitle) {
+                    setEditError("Başlık boş olamaz.");
+                    return;
+                  }
+
+                  // ⛔ Aynı isimde başka görev var mı?
+                  const existing = await api("/api/todos", { token });
+                  const sameTitle = existing.some(
+                    (t) =>
+                      t.id !== editingTodo.id &&
+                      t.title.trim().toLowerCase() === newTitle.toLowerCase()
+                  );
+
+                  if (sameTitle) {
+                    setEditError("Bu başlığa sahip başka bir görev zaten var.");
+                    return;
+                  }
+
+                  await api(`/api/todos/${editingTodo.id}`, {
+                    method: "PUT",
+                    token,
+                    body: {
+                      title: newTitle,
+                      dueDate: editingTodo.dueDate,
+                      isCompleted: editingTodo.isCompleted,
+                    },
+                  });
+
+                  await api(`/api/todos/${editingTodo.id}/tags`, {
+                    method: "PUT",
+                    token,
+                    body: { tagIds: editingTodo.tagIds || [] },
+                  });
+
+                  setEditingTodo(null);
+                  await load();
+                  onChanged?.();
+                }}
+              >
+                Kaydet
+              </button>
+
+
+            </div>
+            {editError && (
+              <div className="text-red-600 text-sm mt-2">{editError}</div>
+            )}
+
+          </div>
+        </div>
+        
+      )}
+      {pendingTagDelete && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h3 className="modal__title">Etiketi Sil</h3>
+            <p className="modal__text">
+              “{pendingTagDelete.name}” etiketini silmek istediğine emin misin?
+            </p>
+            <div className="modal__actions">
+              <button className="btn" onClick={() => setPendingTagDelete(null)}>
+                İptal
+              </button>
+              <button
+                className="btn btn--danger"
+                onClick={async () => {
+                  await api(`/api/tags/${pendingTagDelete.id}`, { method: "DELETE", token });
+                  setPendingTagDelete(null);
+                  await reloadTags();
+                }}
+              >
+                Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -760,25 +1246,38 @@ const TodoCreateForm = ({ token, onCreated }) => {
 };
 
 // ---- Calendar ----
-const CalendarView = ({ token }) => {
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0,7)); // YYYY-MM
+const CalendarView = ({ token, uiTick }) => {
+  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7)); 
   const [includeCompleted, setIncludeCompleted] = useState(true);
   const [data, setData] = useState({});
   const [error, setError] = useState("");
+  const isGuest = JSON.parse(localStorage.getItem("user") || "{}")?.isGuest;
 
   const load = async () => {
     try {
       setError("");
-      const qs = new URLSearchParams({ month, includeCompleted: includeCompleted ? "true" : "false" });
+      const qs = new URLSearchParams({
+        month,
+        includeCompleted: includeCompleted ? "true" : "false"
+      });
       const d = await api(`/api/todos/calendar?${qs.toString()}`, { token });
       setData(d);
-    } catch(e){ setError(e.message); }
+    } catch (e) {
+      setError(e.message);
+    }
   };
-  useEffect(()=>{ load(); }, []);
+
+  // Guest değilse verileri yükle
+  useEffect(() => {
+    if (token && !isGuest) load();
+  }, [month, includeCompleted, token, uiTick]);
 
   return (
     <Card>
-      <div className="flex items-end gap-2 mb-3">
+      <h2 className="text-3xl font-semibold mb-4 flex items-center gap-2">Takvim</h2>
+
+      {/* Filtre alanı */}
+      <div className="flex items-center gap-4 mb-4">
         <div>
           <label className="block text-sm mb-1">Ay</label>
           <DatePicker
@@ -787,35 +1286,86 @@ const CalendarView = ({ token }) => {
             dateFormat="MMMM yyyy"
             showMonthYearPicker
             className="input"
+            disabled={isGuest}
           />
         </div>
-        <label className="flex items-center gap-2 mb-1">
-          <input type="checkbox" checked={includeCompleted} onChange={e=>setIncludeCompleted(e.target.checked)} /> Tamamlananları dahil et
-        </label>
-        <Button onClick={load}>Getir</Button>
+
+        {/* Modern Toggle */}
+        <div className="flex flex-col">
+          <label className="text-sm mb-1">Tamamlananlar</label>
+          <button
+            onClick={() => !isGuest && setIncludeCompleted(v => !v)}
+            disabled={isGuest}
+            className={`relative w-12 h-6 rounded-full transition ${
+              includeCompleted ? "bg-green-500" : "bg-gray-300"
+            } ${isGuest ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition ${
+                includeCompleted ? "translate-x-6" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
       </div>
-      {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-      <div className="space-y-3">
-        {Object.keys(data).sort().map(day => (
-          <div key={day} className="border rounded-xl p-3">
-            <div className="text-sm font-semibold mb-2">{day}</div>
-            <ul className="text-sm list-disc ml-5">
-              {data[day].map(item => (
-                <li key={item.id}>
-                  {item.title} {item.isCompleted ? "✅" : ""}
-                  {item.tags?.length > 0 && (
-                    <span className="ml-2 text-xs text-gray-500">[{item.tags.map(t=>t.name).join(", ")}]</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+
+      {isGuest ? (
+        <div className="text-red-600 text-sm mb-2">
+          Bu işlemi yapmak için yetkiniz yok. (Misafir kullanıcılar takvime erişemez)
+        </div>
+      ) : (
+        <>
+          {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
+
+          {/* Günlere göre görev kartları */}
+          <div className="space-y-4 overflow-y-auto max-h-[400px] pr-2">
+            {Object.keys(data).sort().map(day => (
+              <div key={day} className="border rounded-xl p-4 shadow-sm bg-gray-50">
+                <div className="text-base font-semibold mb-3">{day}</div>
+
+                <div className="space-y-2">
+                  {data[day].map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between px-3 py-2 rounded-lg bg-white border border-gray-200 shadow-sm"
+                    >
+                      <div>
+                        <div className="font-medium">{item.title}</div>
+                        {item.tags?.length > 0 && (
+                          <div className="flex gap-1 mt-1 flex-wrap">
+                            {item.tags.map(t => (
+                              <span
+                                key={t.id}
+                                className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 border border-gray-300"
+                              >
+                                #{t.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {item.isCompleted && (
+                        <span className="text-green-500 text-lg">✅</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {Object.keys(data).length === 0 && (
+              <div className="text-sm text-gray-500">
+                Bu ay için dueDate atanmış görev bulunamadı.
+              </div>
+            )}
           </div>
-        ))}
-        {Object.keys(data).length === 0 && <div className="text-sm text-gray-500">Bu ay için dueDate atanmış görev bulunamadı.</div>}
-      </div>
+        </>
+      )}
     </Card>
   );
 };
+
+
 
 // ---- Main App ----
 export default function App() {
@@ -826,6 +1376,25 @@ export default function App() {
   const [filterTagIds, setFilterTagIds] = useState([]); // number[] (AND)
   const [uiTick, setUiTick] = useState(0);
   const bump = () => setUiTick(x => x + 1);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+
+
+ const loadAllTags = async () => {
+    try {
+      const tg = await api("/api/tags", { token });
+      setAllTags(tg);
+      // Etiket filtresi paneli için
+      // (TodoList içinde prop olarak kullanılabilir)
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+
+  useEffect(() => {
+    if (token) loadAllTags();
+  }, [token]);
 
   const tabs = [
     { key: "inbox", label: "Inbox" },
@@ -866,30 +1435,54 @@ export default function App() {
 
   return (
   <div className="page">
-    <header className="header">
-      <div className="header__inner">
-        <h1 className="text-xl font-semibold">Todo App</h1>
-        <span className="text-sm text-slate-600">
-          Merhaba, <b>{user?.username}</b>
-        </span>
-        <div className="ml-auto">
-          <Button onClick={logout}>Çıkış</Button>
+
+    <header className="header w-full">
+      <div className="header__inner flex items-center justify-between w-full px-8">
+        
+        {/* Sol */}
+        <h1 className="text-xl font-semibold">Taskly</h1>
+
+        {/* Sağ */}
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-600">
+              Merhaba,{" "}
+              <b>
+                {user?.username
+                  ? user.username.charAt(0).toUpperCase() + user.username.slice(1)
+                  : ""}
+              </b>
+            </span>
+          <Button onClick={() => setShowLogoutConfirm(true)}>
+            Çıkış
+          </Button>
         </div>
+
       </div>
     </header>
+
+
+
+
 
     {/* İçerik */}
     <main className="grid-layout">
       {/* Sol sütun */}
       <div className="left-col space-y-6">
         <GoalsHeader token={token} uiTick={uiTick}/>
-        <TodoCreateForm token={token} onCreated={bump} />
+        <TodoCreateForm
+          token={token}
+          isGuest={user?.isGuest}
+          onCreated={bump}
+          allTags={allTags}
+          reloadTags={loadAllTags}
+        />
       </div>
 
       {/* Orta sütun */}
       <div className="center-col">
         <TodoList
           token={token}
+          isGuest={user?.isGuest}
           scope={tab}
           filterTagIds={filterTagIds}
           setFilterTagIds={setFilterTagIds}
@@ -898,13 +1491,43 @@ export default function App() {
           isTagPanelOpen={isTagPanelOpen}
           setIsTagPanelOpen={setIsTagPanelOpen}
           onChanged={bump}
+          allTags={allTags}
+          reloadTags={loadAllTags}
+          uiTick={uiTick}
         />
       </div>
 
       {/* Sağ sütun */}
       <div className="right-col">
-        <CalendarView token={token} />
+        <CalendarView token={token} uiTick={uiTick} />
       </div>
+    {showLogoutConfirm && (
+      <div className="modal-backdrop" role="dialog" aria-modal="true">
+        <div className="modal">
+          <h3 className="modal__title">Çıkış Yap</h3>
+          <p className="modal__text">
+            Uygulamadan çıkmak istediğinize emin misiniz?
+          </p>
+          <div className="modal__actions">
+            <button
+              className="btn"
+              onClick={() => setShowLogoutConfirm(false)}
+            >
+              İptal
+            </button>
+            <button
+              className="btn btn--danger"
+              onClick={() => {
+                logout();
+                setShowLogoutConfirm(false);
+              }}
+            >
+              Çıkış Yap
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </main>
   </div>
 );
