@@ -9,7 +9,7 @@ namespace TodoAppBackend.Models
 
     public record LoginDto(
         [Required] string Username,
-        [Required] string Password
+        string? Password // 📌 Artık opsiyonel
     );
 
     public record TodoCreateDto(

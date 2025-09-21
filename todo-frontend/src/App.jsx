@@ -15,6 +15,7 @@ import CalendarView from "./components/CalendarView";
 // ---- Main App ----
 export default function App() {
   const { token, user, saveAuth, logout } = useAuth();
+  const isGuest = user?.isGuest;
   const [tab, setTab] = useState("inbox"); // inbox | today | upcoming | calendar
   const [isTagPanelOpen, setIsTagPanelOpen] = useState(false);
   const [allTags, setAllTags] = useState([]);
@@ -34,6 +35,11 @@ export default function App() {
 
   useEffect(() => {
     if (token) loadAllTags();
+  }, [token]);
+  useEffect(() => {
+    if (token) {
+      setTab("inbox");
+    }
   }, [token]);
 
   const tabs = [
@@ -112,10 +118,11 @@ export default function App() {
       </header>
 
       {/* İçerik */}
-      <main className="grid-layout">
+      <main className={`grid-layout ${user?.isGuest ? "has-2-cols" : "has-3-cols"}`}>
+        
         {/* Sol sütun */}
         <div className="left-col space-y-6">
-          <GoalsHeader token={token} uiTick={uiTick}/>
+          {!user?.isGuest && <GoalsHeader token={token} uiTick={uiTick} />}
           <TodoCreateForm
             token={token}
             isGuest={user?.isGuest}
@@ -144,10 +151,13 @@ export default function App() {
           />
         </div>
 
+        
         {/* Sağ sütun */}
-        <div className="right-col">
-          <CalendarView token={token} uiTick={uiTick} />
-        </div>
+        {!user?.isGuest && (
+          <div className="right-col">
+            <CalendarView token={token} uiTick={uiTick} />
+          </div>
+        )}
 
         {showLogoutConfirm && (
           <div className="modal-backdrop" role="dialog" aria-modal="true">

@@ -5045,11 +5045,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/enestunc/Desktop/TodoAppBackend/TodoAppBackend.csproj",
+      "projectUniqueName": "/Users/enestunc/Desktop/Yazılım Projelerim/TodoAppBackend/TodoAppBackend.csproj",
       "projectName": "TodoAppBackend",
-      "projectPath": "/Users/enestunc/Desktop/TodoAppBackend/TodoAppBackend.csproj",
+      "projectPath": "/Users/enestunc/Desktop/Yazılım Projelerim/TodoAppBackend/TodoAppBackend.csproj",
       "packagesPath": "/Users/enestunc/.nuget/packages/",
-      "outputPath": "/Users/enestunc/Desktop/TodoAppBackend/obj/",
+      "outputPath": "/Users/enestunc/Desktop/Yazılım Projelerim/TodoAppBackend/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "/Users/enestunc/.nuget/NuGet/NuGet.Config"

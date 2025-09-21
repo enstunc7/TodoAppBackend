@@ -11,6 +11,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+builder.Services.AddScoped<ILookupNormalizer, TurkishLookupNormalizer>();
+
 
 // Configure Entity Framework
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -24,9 +26,21 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.Password.RequireDigit = false;
     options.Password.RequireUppercase = false;
     options.Password.RequireLowercase = false;
+
+    // Kullanıcı adı doğrulama ayarlarını tamamen kaldır
+    options.User.RequireUniqueEmail = false;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
+
+// Özel validator'ları kullan ve varsayılan validator'ları kaldır
+builder.Services.Configure<IdentityOptions>(options =>
+{
+    options.User.AllowedUserNameCharacters = "";  // Tüm karakterlere izin ver
+});
+
+// Varsayılan validator'ları kaldır
+builder.Services.AddScoped<IUserValidator<ApplicationUser>, EmptyUserValidator>();
 
 // Configure JWT
 var jwtSettings = builder.Configuration.GetSection("Jwt");

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "nSu3/Zl7p40=",
+  "dgSpecHash": "XIimYG3QDZs=",
   "success": true,
-  "projectFilePath": "/Users/enestunc/Desktop/TodoAppBackend/TodoAppBackend.csproj",
+  "projectFilePath": "/Users/enestunc/Desktop/Yazılım Projelerim/TodoAppBackend/TodoAppBackend.csproj",
   "expectedPackageFiles": [
     "/Users/enestunc/.nuget/packages/azure.core/1.38.0/azure.core.1.38.0.nupkg.sha512",
     "/Users/enestunc/.nuget/packages/azure.identity/1.11.4/azure.identity.1.11.4.nupkg.sha512",

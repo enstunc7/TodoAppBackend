@@ -152,72 +152,81 @@ const TodoList = ({
               { key: "inbox", label: "Inbox" },
               { key: "today", label: "Today" },
               { key: "upcoming", label: "Upcoming" },
-            ].map(x => {
-              const isGuest = JSON.parse(localStorage.getItem("user") || "{}")?.isGuest;
-              const disabled = isGuest && x.key !== "inbox";
-              return (
+            ]
+              .filter(x => {
+                const isGuest = JSON.parse(localStorage.getItem("user") || "{}")?.isGuest;
+                return isGuest ? x.key === "inbox" : true;
+              })
+              .map(x => (
                 <Button
                   key={x.key}
                   variant={tab === x.key ? "primary" : "default"}
-                  onClick={() => !disabled && setTab(x.key)}
-                  disabled={disabled}
-                  className={disabled ? "opacity-50 cursor-not-allowed" : ""}
+                  onClick={() => setTab(x.key)}
                 >
                   {x.label}
                 </Button>
-              );
-            })}
+              ))}
           </div>
 
           <div className="relative ml-auto">
-            <Button
-              onClick={() => {
-                if (!JSON.parse(localStorage.getItem("user") || "{}")?.isGuest) {
-                  setIsTagPanelOpen(v => !v);
-                }
-              }}
-              className={JSON.parse(localStorage.getItem("user") || "{}")?.isGuest ? "opacity-50 cursor-not-allowed" : ""}
-            >
-              Etiket Filtresi
-            </Button>
+            {!JSON.parse(localStorage.getItem("user") || "{}")?.isGuest && (
+              <Button
+                onClick={() => setIsTagPanelOpen(v => !v)}
+              >
+                Etiket Filtresi
+              </Button>
+            )}
 
             {isTagPanelOpen && (
               <div className="absolute right-0 mt-2 z-20 w-64 bg-white rounded-lg shadow-md border p-3">
-                <div className="flex flex-wrap gap-2">
-                  {allTags.map(tag => {
-                    const selected = filterTagIds.includes(Number(tag.id));
-                    return (
+                {/* Eğer hiç etiket yoksa uyarı */}
+                {allTags.length === 0 ? (
+                  <div className="text-sm text-gray-500 py-1">
+                    Hiç etiket yok
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {allTags.map(tag => {
+                        const selected = filterTagIds.includes(Number(tag.id));
+                        return (
+                          <button
+                            key={tag.id}
+                            onClick={() => {
+                              const id = Number(tag.id);
+                              setFilterTagIds(prev =>
+                                prev.includes(id)
+                                  ? prev.filter(x => x !== id)
+                                  : [...prev, id]
+                              );
+                            }}
+                            className={`px-3 py-1.5 rounded-full text-sm border transition ${
+                              selected
+                                ? "bg-blue-50 border-blue-400 text-blue-800"
+                                : "bg-white border-gray-300 text-gray-800 hover:bg-gray-50"
+                            }`}
+                          >
+                            #{tag.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {filterTagIds.length > 0 && (
                       <button
-                        key={tag.id}
-                        onClick={() => {
-                          const id = Number(tag.id);
-                          setFilterTagIds(prev =>
-                            prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                          );
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-sm border transition ${
-                          selected
-                            ? "bg-blue-50 border-blue-400 text-blue-800"
-                            : "bg-white border-gray-300 text-gray-800 hover:bg-gray-50"
-                        }`}
+                        type="button"
+                        onClick={() => setFilterTagIds([])}
+                        className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 rounded-md mt-2"
                       >
-                        #{tag.name}
+                        Filtreleri Temizle
                       </button>
-                    );
-                  })}
-                </div>
-                {filterTagIds.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setFilterTagIds([])}
-                    className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 rounded-md mt-2"
-                  >
-                    Filtreleri Temizle
-                  </button>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
+
         </div>
 
         <h2 className="text-lg font-semibold mb-3">Görevler</h2>
@@ -225,14 +234,25 @@ const TodoList = ({
           <table className="todo-table min-w-full">
             <thead className="bg-gray-100">
               <tr>
-                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b w-1/2">Görev</th>
-                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">Durum</th>
-                <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">İşlemler</th>
+                <th className="px-4 py-2 text-left text-sm font-medium text-gray-700 border-b w-1/2">
+                  Görev
+                </th>
+                {!isGuest && (
+                  <>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">
+                      Durum
+                    </th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-700 border-b w-1/4">
+                      İşlemler
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {todos.map(t => (
                 <tr key={t.id} className="border-b">
+                  {/* Görev sütunu */}
                   <td className="px-4 py-2 align-top">
                     <div className="font-medium">{t.title}</div>
                     {scope !== "inbox" && t.dueDate && (
@@ -253,67 +273,70 @@ const TodoList = ({
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2">
-                    <span className={`status-badge ${t.isCompleted ? "status-done" : "status-pending"}`}>
-                      {t.isCompleted ? "Tamamlandı" : "Bekliyor"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={() => !isGuest && !t.isCompleted && setPendingComplete(t)}
-                        disabled={isGuest || t.isCompleted}
-                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
-                          isGuest || t.isCompleted
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-blue-500 hover:bg-blue-600"
-                        }`}
-                      >
-                        Tamamlandı
-                      </button>
 
-                      <button
-                        onClick={() => !isGuest && setPendingDelete({ id: t.id, title: t.title })}
-                        disabled={isGuest}
-                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
-                          isGuest
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-red-500 hover:bg-red-600"
-                        }`}
-                      >
-                        Sil
-                      </button>
+                  {/* ✅ Sadece normal kullanıcılar için */}
+                  {!isGuest && (
+                    <>
+                      <td className="px-4 py-2">
+                        <span className={`status-badge ${t.isCompleted ? "status-done" : "status-pending"}`}>
+                          {t.isCompleted ? "Tamamlandı" : "Bekliyor"}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <div className="flex justify-center gap-2">
+                          {/* Tamamla butonu */}
+                          <button
+                            onClick={() => !isGuest && !t.isCompleted && setPendingComplete(t)}
+                            disabled={isGuest || t.isCompleted}
+                            className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                              isGuest || t.isCompleted
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-blue-500 hover:bg-blue-600"
+                            }`}
+                          >
+                            Tamamlandı
+                          </button>
 
-                      <button
-                        onClick={() => {
-                          if (!isGuest) {
-                            setEditingTodo({
-                              ...t,
-                              tagIds: (t.tags || []).map(tag => tag.id)
-                            });
-                          }
-                        }}
-                        disabled={isGuest}
-                        className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
-                          isGuest
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-yellow-400 hover:bg-yellow-500"
-                        }`}
-                      >
-                        Düzenle
-                      </button>
-                    </div>
-                  </td>
+                          {/* Sil butonu */}
+                          <button
+                            onClick={() => !isGuest && setPendingDelete({ id: t.id, title: t.title })}
+                            disabled={isGuest}
+                            className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                              isGuest
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-red-500 hover:bg-red-600"
+                            }`}
+                          >
+                            Sil
+                          </button>
+
+                          {/* Düzenle butonu */}
+                          <button
+                            onClick={() => {
+                              if (!isGuest) {
+                                setEditingTodo({
+                                  ...t,
+                                  tagIds: (t.tags || []).map(tag => tag.id)
+                                });
+                              }
+                            }}
+                            disabled={isGuest}
+                            className={`min-w-[90px] px-3 py-1.5 rounded-md text-sm font-medium text-white ${
+                              isGuest
+                                ? "bg-gray-300 cursor-not-allowed"
+                                : "bg-yellow-400 hover:bg-yellow-500"
+                            }`}
+                          >
+                            Düzenle
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
-              {todos.length === 0 && (
-                <tr>
-                  <td colSpan="3" className="text-center text-gray-500 py-3 text-sm">
-                    Henüz görev yok.
-                  </td>
-                </tr>
-              )}
             </tbody>
+
           </table>
         </div>
       </Card>
@@ -391,93 +414,78 @@ const TodoList = ({
                 </label>
               </div>
 
-              <div className="form-group relative">
+            {/* Düzenle içinde Etiket seçici (daima açık) */}
+            <div className="flex flex-col border rounded-lg bg-white mt-2">
+              <div className="px-3 py-2 border-b font-medium text-gray-700">
+                Etiket Seç
+              </div>
+
+              <div className="flex-1 max-h-24 overflow-y-auto flex flex-wrap gap-2 p-3 scrollbar-white">
+                {allTags.length === 0 && (
+                  <div className="text-sm text-gray-500">Hiç etiket yok</div>
+                )}
+                {allTags.map(tag => {
+                  const selected = editingTodo.tagIds?.includes(tag.id);
+                  return (
+                    <div key={tag.id} className={`tag-chip ${selected ? "selected" : ""}`}>
+                      <span
+                        className="tag-label"
+                        onClick={() => {
+                          const ids = editingTodo.tagIds || [];
+                          setEditingTodo({
+                            ...editingTodo,
+                            tagIds: selected
+                              ? ids.filter(x => x !== tag.id)
+                              : [...ids, tag.id]
+                          });
+                        }}
+                      >
+                        #{tag.name}
+                      </span>
+                      <button
+                        type="button"
+                        className="tag-remove"
+                        onClick={() => setPendingTagDelete(tag)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t px-3 pb-3">
+                <input
+                  type="text"
+                  placeholder="Yeni etiket"
+                  value={newTag}
+                  onChange={(e) => {
+                    setNewTag(e.target.value);
+                    setTagError("");
+                  }}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      await createNewTag();
+                    }
+                  }}
+                  className="tag-add-input flex-1 px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
                 <Button
                   type="button"
-                  onClick={() => setShowTagPanel((v) => !v)}
-                  className="px-4 py-2 border rounded-md bg-white shadow-sm"
+                  onClick={createNewTag}
+                  className="px-3 py-1.5 border rounded-md text-sm bg-gray-100 hover:bg-gray-200"
                 >
-                  Etiket Seç
+                  Ekle
                 </Button>
-
-                {showTagPanel && (
-                  <div className="
-                      absolute z-20 mt-2 w-72
-                      bg-white border border-gray-200 rounded-lg shadow-xl
-                      p-4 flex flex-col gap-3
-                      max-h-64 overflow-y-auto
-                    ">  
-                    <button
-                      type="button"
-                      onClick={() => setShowTagPanel(false)}
-                      className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-lg"
-                    >
-                      ✕
-                    </button>
-
-                    <div className="tag-chip-container flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-                      {allTags.length === 0 && (
-                        <div className="text-sm text-gray-500">Hiç etiket yok</div>
-                      )}
-                      {allTags.map(tag => {
-                        const selected = editingTodo.tagIds?.includes(tag.id);
-                        return (
-                          <div key={tag.id} className={`tag-chip ${selected ? "selected" : ""}`}>
-                            <span
-                              className="tag-label"
-                              onClick={() => {
-                                const ids = editingTodo.tagIds || [];
-                                setEditingTodo({
-                                  ...editingTodo,
-                                  tagIds: selected
-                                    ? ids.filter(x => x !== tag.id)
-                                    : [...ids, tag.id]
-                                });
-                              }}
-                            >
-                              #{tag.name}
-                            </span>
-                            <button
-                              type="button"
-                              className="tag-remove"
-                              onClick={() => setPendingTagDelete(tag)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t">
-                      <input
-                        type="text"
-                        placeholder="Yeni etiket"
-                        value={newTag}
-                        onChange={(e) => {
-                          setNewTag(e.target.value);
-                          setTagError(""); 
-                        }}
-                        onKeyDown={async (e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            await createNewTag();
-                          }
-                        }}
-                        className="tag-add-input px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      />
-                      <Button
-                        type="button"
-                        onClick={createNewTag}
-                        className="px-2 py-1 border rounded-md text-sm bg-gray-100 hover:bg-gray-200"
-                      >
-                        Ekle
-                      </Button>
-                    </div>
-                    {tagError && <div className="text-red-600 text-xs mt-1">{tagError}</div>}
-                    </div>
-                )}
               </div>
+
+              {tagError && <div className="text-red-600 text-xs mt-1 px-3">{tagError}</div>}
+            </div>
+
+            
+
+
             </div>
 
             <div className="modal__actions mt-4 flex justify-end gap-2">

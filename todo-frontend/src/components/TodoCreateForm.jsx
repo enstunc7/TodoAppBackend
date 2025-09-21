@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import DatePicker, { registerLocale } from "react-datepicker";  // 🌟 burada eklendi
+import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import tr from "date-fns/locale/tr";
-registerLocale("tr", tr);  // 📌 Türkçe takvim dili
+registerLocale("tr", tr);
 
 import { api } from "../utils/api";
-import { Card, Button, Input } from "./UI"; 
-// ⚠️ Not: Card, Button, Input bileşenleri App.jsx içinde tanımlıysa oradan export etmen yeterli olur
+import { Card, Button, Input } from "./UI";
 
 const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
   const [title, setTitle] = useState("");
@@ -19,8 +18,8 @@ const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
   const [pendingTagDelete, setPendingTagDelete] = useState(null);
 
   const toggleSelTag = (id) => {
-    setSelectedTags(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelectedTags((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
@@ -33,7 +32,7 @@ const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
         return;
       }
 
-      if (allTags.some(t => t.name.toLowerCase() === name.toLowerCase())) {
+      if (allTags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
         setTagError("Bu isimde bir etiket zaten var.");
         return;
       }
@@ -52,8 +51,12 @@ const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
       const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
       if (storedUser?.isGuest) {
         const existing = await api("/api/todos", { token });
-        if (existing.length >= 10) {
-          setError("Misafir kullanıcı en fazla 10 görev oluşturabilir.");
+        const today = new Date().toISOString().slice(0, 10);
+        const todaysTodos = existing.filter(
+          (t) => t.createdAt?.slice(0, 10) === today
+        );
+        if (todaysTodos.length >= 10) {
+          setError("Misafir kullanıcı günde en fazla 10 görev oluşturabilir.");
           return;
         }
       }
@@ -110,109 +113,105 @@ const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Yeni görev"
+            onKeyDown={async (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault(); // form submit vs olmasın
+                await create();     // mevcut create fonksiyonunu çağır
+              }
+            }}
           />
         </div>
 
-        {/* 📅 Tarih */}
-        <div className="form-group">
-          <label className="block text-sm mb-1">Tarih</label>
-          <DatePicker
-            selected={dueDate ? new Date(dueDate) : null}
-            onChange={(date) => setDueDate(date ? date.toISOString() : "")}
-            dateFormat="dd.MM.yyyy"
-            placeholderText="Tarih seç"
-            locale="tr" 
-            className="input"
-          />
-        </div>
+        {/* 📅 Tarih -> sadece guest değilse */}
+        {!isGuest && (
+          <div className="form-group">
+            <label className="block text-sm mb-1">Tarih</label>
+            <DatePicker
+              selected={dueDate ? new Date(dueDate) : null}
+              onChange={(date) => setDueDate(date ? date.toISOString() : "")}
+              dateFormat="dd.MM.yyyy"
+              placeholderText="Tarih seç"
+              locale="tr"
+              className="input"
+            />
+          </div>
+        )}
 
-        {/* 🏷️ Etiket seçici */}
-        <div className="form-group mt-2">
-          <Button
-            type="button"
-            onClick={() => setTagPanelOpen((v) => !v)}
-            className="px-4 py-2 border rounded-md bg-white shadow-sm"
-          >
-            Etiket Seç
-          </Button>
 
-          {tagPanelOpen && (
-            <div
-              className="
-                absolute z-20 mt-2 w-72
-                bg-white border border-gray-200 rounded-lg shadow-xl
-                p-4 flex flex-col gap-3
-                max-h-64 overflow-y-auto
-              "
-            >
-              <button
-                type="button"
-                onClick={() => setTagPanelOpen(false)}
-                className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 text-lg"
-              >
-                ×
-              </button>
 
-              <div className="space-y-1 max-h-48 overflow-y-auto">
+        {/* 🏷️ Etiket seçici -> sadece guest değilse */}
+        {!isGuest && (
+          <div className="form-group mt-2">
+            <div className="border border-gray-200 rounded-lg bg-white flex flex-col">
+              {/* Başlık */}
+              <div className="px-3 py-2 border-b font-medium text-gray-700">
+                Etiket Seç
+              </div>
+
+              {/* Etiket listesi → max 3 satır, scroll beyaz */}
+              <div className="flex-1 max-h-24 overflow-y-auto flex flex-wrap gap-2 p-3 scrollbar-white">
                 {allTags.length === 0 && (
                   <div className="text-sm text-gray-500">Hiç etiket yok</div>
                 )}
-
-                <div className="tag-chip-container flex flex-wrap gap-2">
-                  {allTags.map((tag) => {
-                    const selected = selectedTags.includes(tag.id);
-                    return (
-                      <div
-                        key={tag.id}
-                        className={`tag-chip ${selected ? "selected" : ""}`}
+                {allTags.map((tag) => {
+                  const selected = selectedTags.includes(tag.id);
+                  return (
+                    <div
+                      key={tag.id}
+                      className={`tag-chip ${selected ? "selected" : ""}`}
+                    >
+                      <span
+                        className="tag-label"
+                        onClick={() => toggleSelTag(tag.id)}
                       >
-                        <span
-                          className="tag-label"
-                          onClick={() => toggleSelTag(tag.id)}
-                        >
-                          #{tag.name}
-                        </span>
-                        <button
-                          type="button"
-                          className="tag-remove"
-                          onClick={() => setPendingTagDelete(tag)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+                        #{tag.name}
+                      </span>
+                      <button
+                        type="button"
+                        className="tag-remove"
+                        onClick={() => setPendingTagDelete(tag)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
-              {!isGuest && (
-                <>
-                  <div className="flex items-center gap-2 pt-2 border-t">
-                    <input
-                      type="text"
-                      placeholder="Yeni etiket"
-                      value={newTag}
-                      onChange={(e) => setNewTag(e.target.value)}
-                      onKeyDown={async (e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          await createTag();
-                        }
-                      }}
-                      className="tag-add-input px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <Button type="button" onClick={createTag}>
-                      Ekle
-                    </Button>
-                  </div>
-                  {tagError && (
-                    <div className="text-red-600 text-sm mt-1">{tagError}</div>
-                  )}
-                </>
+              {/* Yeni etiket ekleme alanı sabit altta */}
+              <div className="flex items-center gap-2 pt-2 border-t px-3 pb-3">
+                <input
+                  type="text"
+                  placeholder="Yeni etiket"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      await createTag();
+                    }
+                  }}
+                  className="tag-add-input flex-1 px-3 py-1.5 border border-gray-300 rounded-full text-sm bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <Button
+                  type="button"
+                  onClick={createTag}
+                  className="px-3 py-1.5 border rounded-md text-sm bg-gray-100 hover:bg-gray-200"
+                >
+                  Ekle
+                </Button>
+              </div>
+
+              {tagError && (
+                <div className="text-red-600 text-sm mt-1 px-3">{tagError}</div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+
+
+
 
         {error && (
           <div className="text-red-600 text-sm mt-2 whitespace-pre-wrap">
@@ -232,10 +231,7 @@ const TodoCreateForm = ({ token, onCreated, allTags, reloadTags, isGuest }) => {
               “{pendingTagDelete.name}” etiketini silmek istediğine emin misiniz?
             </p>
             <div className="modal__actions">
-              <button
-                className="btn"
-                onClick={() => setPendingTagDelete(null)}
-              >
+              <button className="btn" onClick={() => setPendingTagDelete(null)}>
                 İptal
               </button>
               <button

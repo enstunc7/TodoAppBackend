@@ -28,7 +28,11 @@ export default function AuthPanel({ onAuth }) {
         method: "POST",
         body: { username, password },
       });
-      onAuth(data.token, { id: data.userId, username: data.username });
+      onAuth(data.token, { 
+        id: data.userId, 
+        username: data.username, 
+        isGuest: Boolean(data.isGuest)
+      });
     } catch (e) {
       setError(e.message || "Giriş başarısız. Lütfen tekrar deneyin.");
     } finally {
@@ -57,10 +61,10 @@ export default function AuthPanel({ onAuth }) {
       setLoading(true);
       setError("");
       const data = await api("/api/auth/guest-login", { method: "POST" });
-      onAuth(data.token, {
-        id: data.userId,
-        username: data.username,
-        isGuest: true,
+      onAuth(data.token, { 
+        id: data.userId, 
+        username: data.username, 
+        isGuest: Boolean(data.isGuest)
       });
     } catch (e) {
       setError(e.message || "Misafir girişi başarısız.");

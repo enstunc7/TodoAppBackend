@@ -16,6 +16,21 @@ namespace TodoAppBackend.Controllers
         private readonly IConfiguration _configuration;
         private readonly ILogger<AuthController> _logger;
 
+        private string TranslateError(string code, string defaultDescription)
+        {
+            return code switch
+            {
+                "InvalidUserName" => "Kullanıcı adı geçersiz karakterler içeriyor.",
+                "DuplicateUserName" => "Bu kullanıcı adı zaten kullanılıyor.",
+                "PasswordTooShort" => "Şifre en az 6 karakter uzunluğunda olmalıdır.",
+                "PasswordRequiresNonAlphanumeric" => "Şifre en az bir özel karakter içermelidir.",
+                "PasswordRequiresDigit" => "Şifre en az bir rakam içermelidir.",
+                "PasswordRequiresUpper" => "Şifre en az bir büyük harf içermelidir.",
+                "PasswordRequiresLower" => "Şifre en az bir küçük harf içermelidir.",
+                _ => defaultDescription
+            };
+        }
+
         public AuthController(
             UserManager<ApplicationUser> userManager, 
             IConfiguration configuration,
@@ -34,7 +49,7 @@ namespace TodoAppBackend.Controllers
                 var existingUser = await _userManager.FindByNameAsync(dto.Username);
                 if (existingUser != null)
                 {
-                    return BadRequest(new { message = "Username already exists" });
+                    return BadRequest(new { message = "Bu kullanıcı adı zaten kullanılıyor" });
                 }
 
                 var user = new ApplicationUser 
@@ -47,14 +62,24 @@ namespace TodoAppBackend.Controllers
 
                 if (!result.Succeeded)
                 {
-                    return BadRequest(new { 
-                        message = "Registration failed", 
-                        errors = result.Errors.Select(e => e.Description) 
+                    var errors = result.Errors.Select(e => new 
+                    {
+                        Code = e.Code,
+                        Description = TranslateError(e.Code, e.Description)
+                    }).ToList();
+
+                    _logger.LogWarning("Registration failed for user {Username}. Errors: {@Errors}", 
+                        dto.Username, errors);
+
+                    return BadRequest(new 
+                    { 
+                        message = "Kayıt işlemi başarısız oldu", 
+                        errors = errors
                     });
                 }
 
                 _logger.LogInformation($"User {dto.Username} registered successfully");
-                return Ok(new { message = "User registered successfully" });
+                return Ok(new { message = "Kullanıcı başarıyla kaydedildi" });
             }
             catch (Exception ex)
             {
@@ -64,24 +89,38 @@ namespace TodoAppBackend.Controllers
         }
 
         [HttpPost("login")]
-        public async Task<IActionResult> Login(LoginDto dto)
+        [ProducesResponseType(typeof(AuthResponseDto), 200)]
+        public async Task<ActionResult<AuthResponseDto>> Login(LoginDto dto)
         {
             try
             {
                 var user = await _userManager.FindByNameAsync(dto.Username);
-                if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+                if (user == null)
                 {
                     return Unauthorized(new { message = "Invalid username or password" });
                 }
 
+                // 🌟 Guest kullanıcı için şifre kontrolü yapılmaz
+                if (!user.IsGuest)
+                {
+                    // Normal kullanıcı: şifre kontrolü gerekir
+                    if (string.IsNullOrWhiteSpace(dto.Password) ||
+                        !await _userManager.CheckPasswordAsync(user, dto.Password))
+                    {
+                        return Unauthorized(new { message = "Invalid username or password" });
+                    }
+                }
+
                 var token = GenerateJwtToken(user);
-                
+
                 _logger.LogInformation($"User {dto.Username} logged in successfully");
-                
-                return Ok(new { 
-                    token = token,
-                    userId = user.Id,
-                    username = user.UserName
+
+                return Ok(new AuthResponseDto
+                {
+                    Token = token,
+                    UserId = user.Id,
+                    Username = user.UserName,
+                    IsGuest = user.IsGuest
                 });
             }
             catch (Exception ex)
@@ -91,51 +130,48 @@ namespace TodoAppBackend.Controllers
             }
         }
 
+
+
         [HttpPost("guest-login")]
-        public async Task<IActionResult> GuestLogin()
+        public async Task<ActionResult<AuthResponseDto>> GuestLogin()
         {
-            try
+            var guestId = $"guest_{Guid.NewGuid()}";
+            var guestUsername = $"Guest_{Guid.NewGuid().ToString().Substring(0, 8)}";
+
+            var guestUser = new ApplicationUser
             {
-                var guestId = $"guest_{Guid.NewGuid()}";
-                var guestUsername = $"Guest_{Guid.NewGuid().ToString().Substring(0, 8)}";
+                Id = guestId,
+                UserName = guestUsername,
+                Email = $"{guestUsername}@todoapp.com",
+                IsGuest = true
+            };
 
-                var guestUser = new ApplicationUser
-                {
-                    Id = guestId,
-                    UserName = guestUsername,
-                    Email = $"{guestUsername}@todoapp.com",
-                    IsGuest = true
-                };
+            // Önce kullanıcıyı yarat
+            var result = await _userManager.CreateAsync(guestUser, "Guest123!");
 
-                // ❗ Misafir kullanıcı için rastgele bir şifre tanımlıyoruz
-                var result = await _userManager.CreateAsync(guestUser, "Guest123!");
-
-                if (!result.Succeeded)
-                {
-                    return BadRequest(new
-                    {
-                        message = "Guest creation failed",
-                        errors = result.Errors.Select(e => e.Description)
-                    });
-                }
+            if (result.Succeeded)
+            {
+                // 👇 Önemli: DB'ye kesin yaz!
+                guestUser.IsGuest = true;
+                await _userManager.UpdateAsync(guestUser);
 
                 var token = GenerateJwtToken(guestUser);
-
-                _logger.LogInformation($"Guest user {guestUser.UserName} created & logged in.");
-
-                return Ok(new
+                return Ok(new AuthResponseDto
                 {
-                    token = token,
-                    userId = guestUser.Id,
-                    username = guestUser.UserName
+                    Token = token,
+                    UserId = guestUser.Id,
+                    Username = guestUser.UserName,
+                    IsGuest = true
                 });
             }
-            catch (Exception ex)
+
+            return BadRequest(new
             {
-                _logger.LogError(ex, "Error during guest login");
-                return StatusCode(500, new { message = "Internal server error" });
-            }
+                message = "Guest creation failed",
+                errors = result.Errors.Select(e => e.Description)
+            });
         }
+
 
 
         private string GenerateJwtToken(ApplicationUser user)
